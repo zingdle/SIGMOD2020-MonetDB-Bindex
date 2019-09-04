@@ -1,0 +1,79 @@
+stdout of test 'decimal_vs_integer.Bug-3941` in directory 'sql/test/BugTracker-2016` itself:
+
+
+# 15:01:29 >  
+# 15:01:29 >  "mserver5" "--debug=10" "--set" "gdk_nr_threads=0" "--set" "mapi_open=true" "--set" "mapi_port=37542" "--set" "mapi_usock=/var/tmp/mtest-23330/.s.monetdb.37542" "--set" "monet_prompt=" "--forcemito" "--set" "mal_listing=2" "--dbpath=/home/niels/scratch/rc-monetdb/Linux-x86_64/var/MonetDB/mTests_sql_test_BugTracker-2016" "--set" "mal_listing=0" "--set" "embedded_r=yes"
+# 15:01:29 >  
+
+# MonetDB 5 server v11.21.12
+# This is an unreleased version
+# Serving database 'mTests_sql_test_BugTracker-2016', using 4 threads
+# Compiled for x86_64-unknown-linux-gnu/64bit with 64bit OIDs and 128bit integers dynamically linked
+# Found 7.332 GiB available main-memory.
+# Copyright (c) 1993-July 2008 CWI.
+# Copyright (c) August 2008-2015 MonetDB B.V., all rights reserved
+# Visit http://www.monetdb.org/ for further information
+# Listening for connection requests on mapi:monetdb://localhost.nes.nl:37542/
+# Listening for UNIX domain connection requests on mapi:monetdb:///var/tmp/mtest-23330/.s.monetdb.37542
+# MonetDB/GIS module loaded
+# Start processing logs sql/sql_logs version 52200
+# Start reading the write-ahead log 'sql_logs/sql/log.11'
+# Finished reading the write-ahead log 'sql_logs/sql/log.11'
+# Finished processing logs sql/sql_logs
+# MonetDB/SQL module loaded
+# MonetDB/R   module loaded
+
+Ready.
+
+# 15:01:30 >  
+# 15:01:30 >  "mclient" "-lsql" "-ftest" "-Eutf-8" "-i" "-e" "--host=/var/tmp/mtest-23330" "--port=37542"
+# 15:01:30 >  
+
+#start transaction;
+#create table tmp(i decimal(8));
+#explain select count(*) from tmp where i = 20160222;
+% .explain # table_name
+% mal # name
+% clob # type
+% 120 # length
+function user.s4_1():void;
+    X_2:void := querylog.define("explain select count(*) from tmp where i = 20160222;":str, "default_pipe":str, 13:int);
+    X_16:bat[:oid] := bat.new(nil:oid);
+    X_19:lng := aggr.count(X_16:bat[:oid]);
+    sql.resultSet("sys.L3":str, "L3":str, "bigint":str, 64:int, 0:int, 7:int, X_19:lng);
+end user.s4_1;
+# optimizer.mitosis()
+# optimizer.dataflow()
+#explain select count(*) from tmp where i = '20160222';
+% .explain # table_name
+% mal # name
+% clob # type
+% 126 # length
+function user.s6_1():void;
+    X_2:void := querylog.define("explain select count(*) from tmp where i = \\'20160222\\';":str, "default_pipe":str, 13:int);
+    X_16:bat[:oid] := bat.new(nil:oid);
+    X_19:lng := aggr.count(X_16:bat[:oid]);
+    sql.resultSet("sys.L3":str, "L3":str, "bigint":str, 64:int, 0:int, 7:int, X_19:lng);
+end user.s6_1;
+# optimizer.mitosis()
+# optimizer.dataflow()
+#explain select count(*) from tmp where i = 201602221;
+% .explain # table_name
+% mal # name
+% clob # type
+% 121 # length
+function user.s8_1():void;
+    X_2:void := querylog.define("explain select count(*) from tmp where i = 201602221;":str, "default_pipe":str, 14:int);
+    X_12:bat[:int] := bat.new(nil:int);
+    X_13:bat[:int] := batcalc.int(0:int, X_12:bat[:int], 9:int, 0:int);
+    C_19:bat[:oid] := algebra.thetaselect(X_13:bat[:int], 201602221:int, "==":str);
+    X_22:lng := aggr.count(C_19:bat[:oid]);
+    sql.resultSet("sys.L3":str, "L3":str, "bigint":str, 64:int, 0:int, 7:int, X_22:lng);
+end user.s8_1;
+# optimizer.mitosis()
+# optimizer.dataflow()
+
+# 15:01:30 >  
+# 15:01:30 >  "Done."
+# 15:01:30 >  
+

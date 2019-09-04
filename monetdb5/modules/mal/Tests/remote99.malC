@@ -1,0 +1,7 @@
+uri := sabaoth.getLocalConnectionURI();
+# test leakage of connection settings.
+barrier v:= 0:lng;
+	conn:str := remote.connect(uri, "monetdb", "monetdb");
+	remote.disconnect(conn);
+	redo v := iterator.next(1:lng,200:lng);
+exit v;

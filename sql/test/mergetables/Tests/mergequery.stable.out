@@ -1,0 +1,340 @@
+stdout of test 'mergequery` in directory 'sql/test/mergetables` itself:
+
+
+# 16:20:23 >  
+# 16:20:23 >  "mserver5" "--debug=10" "--set" "gdk_nr_threads=0" "--set" "mapi_open=true" "--set" "mapi_port=30678" "--set" "mapi_usock=/var/tmp/mtest-11019/.s.monetdb.30678" "--set" "monet_prompt=" "--forcemito" "--set" "mal_listing=2" "--dbpath=/export/scratch1/mk/current//Linux/var/MonetDB/mTests_sql_test_mergetables" "--set" "mal_listing=0" "--set" "embedded_r=yes"
+# 16:20:23 >  
+
+# MonetDB 5 server v11.20.0
+# This is an unreleased version
+# Serving database 'mTests_sql_test_mergetables', using 8 threads
+# Compiled for x86_64-unknown-linux-gnu/64bit with 64bit OIDs and 128bit integers dynamically linked
+# Found 15.590 GiB available main-memory.
+# Copyright (c) 1993-July 2008 CWI.
+# Copyright (c) August 2008-2015 MonetDB B.V., all rights reserved
+# Visit http://www.monetdb.org/ for further information
+# Listening for connection requests on mapi:monetdb://vienna.ins.cwi.nl:30678/
+# Listening for UNIX domain connection requests on mapi:monetdb:///var/tmp/mtest-11019/.s.monetdb.30678
+# MonetDB/GIS module loaded
+# MonetDB/SQL module loaded
+# MonetDB/R   module loaded
+
+Ready.
+
+# 16:20:23 >  
+# 16:20:23 >  "mclient" "-lsql" "-ftest" "-Eutf-8" "-i" "-e" "--host=/var/tmp/mtest-11019" "--port=30678"
+# 16:20:23 >  
+
+#CREATE TABLE part1 ( x double, y double, z double);
+#COPY 4 RECORDS INTO part1 FROM stdin USING DELIMITERS ' ','\n';
+#0.0 0.0 0.0
+#1.0 0.0 0.0 
+#0.0 1.0 0.0 
+#1.0 1.0 0.0 
+[ 4	]
+#CREATE TABLE part2 ( x double, y double, z double);
+#COPY 4 RECORDS INTO part2 FROM stdin USING DELIMITERS ' ','\n';
+#2.0 0.0 0.0
+#3.0 0.0 0.0 
+#2.0 1.0 0.0 
+#3.0 1.0 0.0 
+[ 4	]
+#CREATE MERGE TABLE complete ( x double, y double, z double);
+#ALTER TABLE complete ADD TABLE part1;
+#ALTER TABLE complete ADD TABLE part2;
+#SELECT * FROM COMPLETE;
+% .complete,	.complete,	.complete # table_name
+% x,	y,	z # name
+% double,	double,	double # type
+% 24,	24,	24 # length
+[ 0,	0,	0	]
+[ 1,	0,	0	]
+[ 0,	1,	0	]
+[ 1,	1,	0	]
+[ 2,	0,	0	]
+[ 3,	0,	0	]
+[ 2,	1,	0	]
+[ 3,	1,	0	]
+#SELECT * FROM complete where x>=0.0 AND x <=1.0;
+% .complete,	.complete,	.complete # table_name
+% x,	y,	z # name
+% double,	double,	double # type
+% 24,	24,	24 # length
+[ 0,	0,	0	]
+[ 1,	0,	0	]
+[ 0,	1,	0	]
+[ 1,	1,	0	]
+#SELECT * FROM complete where x>=2.0 AND x <=3.0;
+% .complete,	.complete,	.complete # table_name
+% x,	y,	z # name
+% double,	double,	double # type
+% 24,	24,	24 # length
+[ 2,	0,	0	]
+[ 3,	0,	0	]
+[ 2,	1,	0	]
+[ 3,	1,	0	]
+#SELECT * FROM complete where x>=1.0 AND x <=2.0;
+% .complete,	.complete,	.complete # table_name
+% x,	y,	z # name
+% double,	double,	double # type
+% 24,	24,	24 # length
+[ 1,	0,	0	]
+[ 1,	1,	0	]
+[ 2,	0,	0	]
+[ 2,	1,	0	]
+#CREATE TABLE answ( LIKE complete);
+#EXPLAIN INSERT INTO answ
+#SELECT * FROM complete where x>=1.0 AND x <=2.0;
+% .explain # table_name
+% mal # name
+% clob # type
+% 142 # length
+function user.s22_1():void;
+    X_3:void := querylog.define("explain insert into answ\nselect * from complete where x>=1.0 and x <=2.0;":str, "default_pipe":str, 66:int);
+barrier X_235:bit := language.dataflow();
+    X_74:bat[:dbl] := bat.new(nil:dbl);
+    X_6:int := sql.mvc();
+    X_155:bat[:dbl] := sql.bind(X_6:int, "sys":str, "part1":str, "x":str, 0:int, 0:int, 4:int);
+    C_148:bat[:oid] := sql.tid(X_6:int, "sys":str, "part1":str, 0:int, 4:int);
+    C_197:bat[:oid] := algebra.select(X_155:bat[:dbl], C_148:bat[:oid], 1:dbl, 2:dbl, true:bit, true:bit, false:bit);
+    X_201:bat[:dbl] := algebra.projection(C_197:bat[:oid], X_155:bat[:dbl]);
+    X_156:bat[:dbl] := sql.bind(X_6:int, "sys":str, "part1":str, "x":str, 0:int, 1:int, 4:int);
+    C_150:bat[:oid] := sql.tid(X_6:int, "sys":str, "part1":str, 1:int, 4:int);
+    C_198:bat[:oid] := algebra.select(X_156:bat[:dbl], C_150:bat[:oid], 1:dbl, 2:dbl, true:bit, true:bit, false:bit);
+    X_202:bat[:dbl] := algebra.projection(C_198:bat[:oid], X_156:bat[:dbl]);
+    X_157:bat[:dbl] := sql.bind(X_6:int, "sys":str, "part1":str, "x":str, 0:int, 2:int, 4:int);
+    C_152:bat[:oid] := sql.tid(X_6:int, "sys":str, "part1":str, 2:int, 4:int);
+    C_199:bat[:oid] := algebra.select(X_157:bat[:dbl], C_152:bat[:oid], 1:dbl, 2:dbl, true:bit, true:bit, false:bit);
+    X_203:bat[:dbl] := algebra.projection(C_199:bat[:oid], X_157:bat[:dbl]);
+    X_158:bat[:dbl] := sql.bind(X_6:int, "sys":str, "part1":str, "x":str, 0:int, 3:int, 4:int);
+    C_154:bat[:oid] := sql.tid(X_6:int, "sys":str, "part1":str, 3:int, 4:int);
+    C_200:bat[:oid] := algebra.select(X_158:bat[:dbl], C_154:bat[:oid], 1:dbl, 2:dbl, true:bit, true:bit, false:bit);
+    X_204:bat[:dbl] := algebra.projection(C_200:bat[:oid], X_158:bat[:dbl]);
+    X_221:bat[:dbl] := mat.packIncrement(X_201:bat[:dbl], 4:int);
+    X_223:bat[:dbl] := mat.packIncrement(X_221:bat[:dbl], X_202:bat[:dbl]);
+    X_224:bat[:dbl] := mat.packIncrement(X_223:bat[:dbl], X_203:bat[:dbl]);
+    X_42:bat[:dbl] := mat.packIncrement(X_224:bat[:dbl], X_204:bat[:dbl]);
+    X_47:bat[:dbl] := sql.bind(X_6:int, "sys":str, "part2":str, "x":str, 0:int);
+    C_45:bat[:oid] := sql.tid(X_6:int, "sys":str, "part2":str);
+    C_70:bat[:oid] := algebra.select(X_47:bat[:dbl], C_45:bat[:oid], 1:dbl, 2:dbl, true:bit, true:bit, false:bit);
+    X_59:bat[:dbl] := sql.bind(X_6:int, "sys":str, "part2":str, "z":str, 0:int);
+    X_73:bat[:dbl] := algebra.projection(C_70:bat[:oid], X_59:bat[:dbl]);
+    X_53:bat[:dbl] := sql.bind(X_6:int, "sys":str, "part2":str, "y":str, 0:int);
+    X_72:bat[:dbl] := algebra.projection(C_70:bat[:oid], X_53:bat[:dbl]);
+    X_71:bat[:dbl] := algebra.projection(C_70:bat[:oid], X_47:bat[:dbl]);
+    X_187:bat[:dbl] := sql.bind(X_6:int, "sys":str, "part1":str, "z":str, 0:int, 3:int, 4:int);
+    X_212:bat[:dbl] := algebra.projection(C_200:bat[:oid], X_187:bat[:dbl]);
+    X_185:bat[:dbl] := sql.bind(X_6:int, "sys":str, "part1":str, "z":str, 0:int, 2:int, 4:int);
+    X_211:bat[:dbl] := algebra.projection(C_199:bat[:oid], X_185:bat[:dbl]);
+    X_183:bat[:dbl] := sql.bind(X_6:int, "sys":str, "part1":str, "z":str, 0:int, 1:int, 4:int);
+    X_210:bat[:dbl] := algebra.projection(C_198:bat[:oid], X_183:bat[:dbl]);
+    X_181:bat[:dbl] := sql.bind(X_6:int, "sys":str, "part1":str, "z":str, 0:int, 0:int, 4:int);
+    X_209:bat[:dbl] := algebra.projection(C_197:bat[:oid], X_181:bat[:dbl]);
+    X_170:bat[:dbl] := sql.bind(X_6:int, "sys":str, "part1":str, "y":str, 0:int, 3:int, 4:int);
+    X_208:bat[:dbl] := algebra.projection(C_200:bat[:oid], X_170:bat[:dbl]);
+    X_169:bat[:dbl] := sql.bind(X_6:int, "sys":str, "part1":str, "y":str, 0:int, 2:int, 4:int);
+    X_207:bat[:dbl] := algebra.projection(C_199:bat[:oid], X_169:bat[:dbl]);
+    X_168:bat[:dbl] := sql.bind(X_6:int, "sys":str, "part1":str, "y":str, 0:int, 1:int, 4:int);
+    X_206:bat[:dbl] := algebra.projection(C_198:bat[:oid], X_168:bat[:dbl]);
+    X_167:bat[:dbl] := sql.bind(X_6:int, "sys":str, "part1":str, "y":str, 0:int, 0:int, 4:int);
+    X_205:bat[:dbl] := algebra.projection(C_197:bat[:oid], X_167:bat[:dbl]);
+    X_76:bat[:dbl] := bat.append(X_74:bat[:dbl], X_42:bat[:dbl], true:bit);
+    X_78:bat[:dbl] := bat.append(X_76:bat[:dbl], X_71:bat[:dbl], true:bit);
+    X_79:bat[:dbl] := bat.new(nil:dbl);
+    X_226:bat[:dbl] := mat.packIncrement(X_205:bat[:dbl], 4:int);
+    X_227:bat[:dbl] := mat.packIncrement(X_226:bat[:dbl], X_206:bat[:dbl]);
+    X_228:bat[:dbl] := mat.packIncrement(X_227:bat[:dbl], X_207:bat[:dbl]);
+    X_43:bat[:dbl] := mat.packIncrement(X_228:bat[:dbl], X_208:bat[:dbl]);
+    X_80:bat[:dbl] := bat.append(X_79:bat[:dbl], X_43:bat[:dbl], true:bit);
+    X_81:bat[:dbl] := bat.append(X_80:bat[:dbl], X_72:bat[:dbl], true:bit);
+    X_82:bat[:dbl] := bat.new(nil:dbl);
+    X_230:bat[:dbl] := mat.packIncrement(X_209:bat[:dbl], 4:int);
+    X_231:bat[:dbl] := mat.packIncrement(X_230:bat[:dbl], X_210:bat[:dbl]);
+    X_232:bat[:dbl] := mat.packIncrement(X_231:bat[:dbl], X_211:bat[:dbl]);
+    X_44:bat[:dbl] := mat.packIncrement(X_232:bat[:dbl], X_212:bat[:dbl]);
+    X_83:bat[:dbl] := bat.append(X_82:bat[:dbl], X_44:bat[:dbl], true:bit);
+    X_84:bat[:dbl] := bat.append(X_83:bat[:dbl], X_73:bat[:dbl], true:bit);
+    language.pass(X_155:bat[:dbl]);
+    language.pass(X_156:bat[:dbl]);
+    language.pass(X_157:bat[:dbl]);
+    language.pass(X_158:bat[:dbl]);
+    language.pass(C_70:bat[:oid]);
+    language.pass(X_47:bat[:dbl]);
+    language.pass(C_200:bat[:oid]);
+    language.pass(C_199:bat[:oid]);
+    language.pass(C_198:bat[:oid]);
+    language.pass(C_197:bat[:oid]);
+exit X_235:bit;
+    X_86:int := sql.append(X_6:int, "sys":str, "answ":str, "x":str, X_78:bat[:dbl]);
+    X_90:int := sql.append(X_86:int, "sys":str, "answ":str, "y":str, X_81:bat[:dbl]);
+    X_93:int := sql.append(X_90:int, "sys":str, "answ":str, "z":str, X_84:bat[:dbl]);
+    X_95:lng := aggr.count(X_84:bat[:dbl]);
+    sql.affectedRows(X_93:int, X_95:lng);
+end user.s22_1;
+#inline               actions= 0 time=2 usec 
+#candidates           actions= 1 time=31 usec 
+#remap                actions= 0 time=4 usec 
+#costModel            actions= 1 time=28 usec 
+#coercions            actions= 0 time=3 usec 
+#evaluate             actions= 4 time=45 usec 
+#emptybind            actions= 0 time=4 usec 
+#pushselect           actions= 8 time=41 usec 
+#aliases              actions=16 time=30 usec 
+#mitosis              actions= 0 time=5 usec 
+#mergetable           actions= 0 time=34 usec 
+#deadcode             actions=12 time=24 usec 
+#aliases              actions= 0 time=6 usec 
+#constants            actions= 9 time=22 usec 
+#commonTerms          actions= 0 time=7 usec 
+#projectionpath       actions= 0 time=6 usec 
+#deadcode             actions= 0 time=6 usec 
+#reorder              actions= 1 time=37 usec 
+#reduce               actions=74 time=39 usec 
+#matpack              actions= 0 time=5 usec 
+#dataflow             actions=31 time=36 usec 
+#querylog             actions= 0 time=1 usec 
+#multiplex            actions= 0 time=3 usec 
+#generator            actions= 0 time=1 usec 
+#profiler             actions= 1 time=20 usec 
+#garbageCollector     actions= 1 time=27 usec 
+#total                actions= 1 time=526 usec 
+#INSERT INTO answ
+#SELECT * FROM complete where x>=1.0 AND x <=2.0;
+[ 4	]
+#EXPLAIN INSERT INTO answ
+#SELECT * FROM complete
+#WHERE x BETWEEN 0 AND 2 AND Y BETWEEN 0 AND 2;
+% .explain # table_name
+% mal # name
+% clob # type
+% 164 # length
+function user.s24_1():void;
+    X_5:void := querylog.define("explain insert into answ\nselect * from complete\nwhere x between 0 and 2 and y between 0 and 2;":str, "default_pipe":str, 76:int);
+barrier X_252:bit := language.dataflow();
+    X_88:bat[:dbl] := bat.new(nil:dbl);
+    X_8:int := sql.mvc();
+    X_180:bat[:dbl] := sql.bind(X_8:int, "sys":str, "part1":str, "y":str, 0:int, 0:int, 4:int);
+    X_168:bat[:dbl] := sql.bind(X_8:int, "sys":str, "part1":str, "x":str, 0:int, 0:int, 4:int);
+    C_161:bat[:oid] := sql.tid(X_8:int, "sys":str, "part1":str, 0:int, 4:int);
+    C_210:bat[:oid] := algebra.select(X_168:bat[:dbl], C_161:bat[:oid], 0:dbl, 2:dbl, true:bit, true:bit, false:bit);
+    C_214:bat[:oid] := algebra.select(X_180:bat[:dbl], C_210:bat[:oid], 0:dbl, 2:dbl, true:bit, true:bit, false:bit);
+    X_218:bat[:dbl] := algebra.projection(C_214:bat[:oid], X_168:bat[:dbl]);
+    X_181:bat[:dbl] := sql.bind(X_8:int, "sys":str, "part1":str, "y":str, 0:int, 1:int, 4:int);
+    X_169:bat[:dbl] := sql.bind(X_8:int, "sys":str, "part1":str, "x":str, 0:int, 1:int, 4:int);
+    C_163:bat[:oid] := sql.tid(X_8:int, "sys":str, "part1":str, 1:int, 4:int);
+    C_211:bat[:oid] := algebra.select(X_169:bat[:dbl], C_163:bat[:oid], 0:dbl, 2:dbl, true:bit, true:bit, false:bit);
+    C_215:bat[:oid] := algebra.select(X_181:bat[:dbl], C_211:bat[:oid], 0:dbl, 2:dbl, true:bit, true:bit, false:bit);
+    X_219:bat[:dbl] := algebra.projection(C_215:bat[:oid], X_169:bat[:dbl]);
+    X_182:bat[:dbl] := sql.bind(X_8:int, "sys":str, "part1":str, "y":str, 0:int, 2:int, 4:int);
+    X_170:bat[:dbl] := sql.bind(X_8:int, "sys":str, "part1":str, "x":str, 0:int, 2:int, 4:int);
+    C_165:bat[:oid] := sql.tid(X_8:int, "sys":str, "part1":str, 2:int, 4:int);
+    C_212:bat[:oid] := algebra.select(X_170:bat[:dbl], C_165:bat[:oid], 0:dbl, 2:dbl, true:bit, true:bit, false:bit);
+    C_216:bat[:oid] := algebra.select(X_182:bat[:dbl], C_212:bat[:oid], 0:dbl, 2:dbl, true:bit, true:bit, false:bit);
+    X_220:bat[:dbl] := algebra.projection(C_216:bat[:oid], X_170:bat[:dbl]);
+    X_183:bat[:dbl] := sql.bind(X_8:int, "sys":str, "part1":str, "y":str, 0:int, 3:int, 4:int);
+    X_171:bat[:dbl] := sql.bind(X_8:int, "sys":str, "part1":str, "x":str, 0:int, 3:int, 4:int);
+    C_167:bat[:oid] := sql.tid(X_8:int, "sys":str, "part1":str, 3:int, 4:int);
+    C_213:bat[:oid] := algebra.select(X_171:bat[:dbl], C_167:bat[:oid], 0:dbl, 2:dbl, true:bit, true:bit, false:bit);
+    C_217:bat[:oid] := algebra.select(X_183:bat[:dbl], C_213:bat[:oid], 0:dbl, 2:dbl, true:bit, true:bit, false:bit);
+    X_221:bat[:dbl] := algebra.projection(C_217:bat[:oid], X_171:bat[:dbl]);
+    X_238:bat[:dbl] := mat.packIncrement(X_218:bat[:dbl], 4:int);
+    X_240:bat[:dbl] := mat.packIncrement(X_238:bat[:dbl], X_219:bat[:dbl]);
+    X_241:bat[:dbl] := mat.packIncrement(X_240:bat[:dbl], X_220:bat[:dbl]);
+    X_49:bat[:dbl] := mat.packIncrement(X_241:bat[:dbl], X_221:bat[:dbl]);
+    X_60:bat[:dbl] := sql.bind(X_8:int, "sys":str, "part2":str, "y":str, 0:int);
+    X_54:bat[:dbl] := sql.bind(X_8:int, "sys":str, "part2":str, "x":str, 0:int);
+    C_52:bat[:oid] := sql.tid(X_8:int, "sys":str, "part2":str);
+    C_76:bat[:oid] := algebra.select(X_54:bat[:dbl], C_52:bat[:oid], 0:dbl, 2:dbl, true:bit, true:bit, false:bit);
+    C_84:bat[:oid] := algebra.select(X_60:bat[:dbl], C_76:bat[:oid], 0:dbl, 2:dbl, true:bit, true:bit, false:bit);
+    X_66:bat[:dbl] := sql.bind(X_8:int, "sys":str, "part2":str, "z":str, 0:int);
+    X_87:bat[:dbl] := algebra.projection(C_84:bat[:oid], X_66:bat[:dbl]);
+    X_86:bat[:dbl] := algebra.projection(C_84:bat[:oid], X_60:bat[:dbl]);
+    X_85:bat[:dbl] := algebra.projection(C_84:bat[:oid], X_54:bat[:dbl]);
+    X_200:bat[:dbl] := sql.bind(X_8:int, "sys":str, "part1":str, "z":str, 0:int, 3:int, 4:int);
+    X_229:bat[:dbl] := algebra.projection(C_217:bat[:oid], X_200:bat[:dbl]);
+    X_198:bat[:dbl] := sql.bind(X_8:int, "sys":str, "part1":str, "z":str, 0:int, 2:int, 4:int);
+    X_228:bat[:dbl] := algebra.projection(C_216:bat[:oid], X_198:bat[:dbl]);
+    X_196:bat[:dbl] := sql.bind(X_8:int, "sys":str, "part1":str, "z":str, 0:int, 1:int, 4:int);
+    X_227:bat[:dbl] := algebra.projection(C_215:bat[:oid], X_196:bat[:dbl]);
+    X_194:bat[:dbl] := sql.bind(X_8:int, "sys":str, "part1":str, "z":str, 0:int, 0:int, 4:int);
+    X_226:bat[:dbl] := algebra.projection(C_214:bat[:oid], X_194:bat[:dbl]);
+    X_225:bat[:dbl] := algebra.projection(C_217:bat[:oid], X_183:bat[:dbl]);
+    X_224:bat[:dbl] := algebra.projection(C_216:bat[:oid], X_182:bat[:dbl]);
+    X_223:bat[:dbl] := algebra.projection(C_215:bat[:oid], X_181:bat[:dbl]);
+    X_222:bat[:dbl] := algebra.projection(C_214:bat[:oid], X_180:bat[:dbl]);
+    X_90:bat[:dbl] := bat.append(X_88:bat[:dbl], X_49:bat[:dbl], true:bit);
+    X_91:bat[:dbl] := bat.append(X_90:bat[:dbl], X_85:bat[:dbl], true:bit);
+    X_92:bat[:dbl] := bat.new(nil:dbl);
+    X_243:bat[:dbl] := mat.packIncrement(X_222:bat[:dbl], 4:int);
+    X_244:bat[:dbl] := mat.packIncrement(X_243:bat[:dbl], X_223:bat[:dbl]);
+    X_245:bat[:dbl] := mat.packIncrement(X_244:bat[:dbl], X_224:bat[:dbl]);
+    X_50:bat[:dbl] := mat.packIncrement(X_245:bat[:dbl], X_225:bat[:dbl]);
+    X_93:bat[:dbl] := bat.append(X_92:bat[:dbl], X_50:bat[:dbl], true:bit);
+    X_94:bat[:dbl] := bat.append(X_93:bat[:dbl], X_86:bat[:dbl], true:bit);
+    X_95:bat[:dbl] := bat.new(nil:dbl);
+    X_247:bat[:dbl] := mat.packIncrement(X_226:bat[:dbl], 4:int);
+    X_248:bat[:dbl] := mat.packIncrement(X_247:bat[:dbl], X_227:bat[:dbl]);
+    X_249:bat[:dbl] := mat.packIncrement(X_248:bat[:dbl], X_228:bat[:dbl]);
+    X_51:bat[:dbl] := mat.packIncrement(X_249:bat[:dbl], X_229:bat[:dbl]);
+    X_96:bat[:dbl] := bat.append(X_95:bat[:dbl], X_51:bat[:dbl], true:bit);
+    X_97:bat[:dbl] := bat.append(X_96:bat[:dbl], X_87:bat[:dbl], true:bit);
+    language.pass(X_168:bat[:dbl]);
+    language.pass(X_169:bat[:dbl]);
+    language.pass(X_170:bat[:dbl]);
+    language.pass(X_171:bat[:dbl]);
+    language.pass(X_60:bat[:dbl]);
+    language.pass(C_84:bat[:oid]);
+    language.pass(X_54:bat[:dbl]);
+    language.pass(C_217:bat[:oid]);
+    language.pass(X_183:bat[:dbl]);
+    language.pass(C_216:bat[:oid]);
+    language.pass(X_182:bat[:dbl]);
+    language.pass(C_215:bat[:oid]);
+    language.pass(X_181:bat[:dbl]);
+    language.pass(C_214:bat[:oid]);
+    language.pass(X_180:bat[:dbl]);
+exit X_252:bit;
+    X_99:int := sql.append(X_8:int, "sys":str, "answ":str, "x":str, X_91:bat[:dbl]);
+    X_103:int := sql.append(X_99:int, "sys":str, "answ":str, "y":str, X_94:bat[:dbl]);
+    X_106:int := sql.append(X_103:int, "sys":str, "answ":str, "z":str, X_97:bat[:dbl]);
+    X_108:lng := aggr.count(X_97:bat[:dbl]);
+    sql.affectedRows(X_106:int, X_108:lng);
+end user.s24_1;
+#inline               actions= 0 time=2 usec 
+#remap                actions= 0 time=4 usec 
+#costModel            actions= 1 time=29 usec 
+#coercions            actions= 0 time=2 usec 
+#evaluate             actions= 8 time=50 usec 
+#emptybind            actions= 0 time=4 usec 
+#pushselect           actions= 8 time=37 usec 
+#aliases              actions=20 time=36 usec 
+#mitosis              actions= 0 time=4 usec 
+#mergetable           actions= 0 time=52 usec 
+#deadcode             actions=12 time=25 usec 
+#aliases              actions= 0 time=7 usec 
+#constants            actions=12 time=23 usec 
+#commonTerms          actions= 0 time=8 usec 
+#projectionpath       actions= 0 time=6 usec 
+#deadcode             actions= 0 time=7 usec 
+#reorder              actions= 1 time=38 usec 
+#reduce               actions=81 time=44 usec 
+#matpack              actions= 0 time=5 usec 
+#dataflow             actions=31 time=38 usec 
+#querylog             actions= 0 time=1 usec 
+#multiplex            actions= 0 time=3 usec 
+#generator            actions= 0 time=2 usec 
+#profiler             actions= 1 time=21 usec 
+#garbageCollector     actions= 1 time=29 usec 
+#total                actions= 1 time=573 usec 
+#INSERT INTO answ
+#SELECT * FROM complete
+#WHERE x BETWEEN 0 AND 2 AND Y BETWEEN 0 AND 2;
+[ 6	]
+#DROP TABLE complete;
+#DROP TABLE part1;
+#DROP TABLE part2;
+
+# 16:20:24 >  
+# 16:20:24 >  "Done."
+# 16:20:24 >  
+
