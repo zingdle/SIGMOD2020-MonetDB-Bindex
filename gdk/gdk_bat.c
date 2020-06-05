@@ -458,6 +458,7 @@ BATextend(BAT *b, BUN newcap)
 	    HEAPextend(&b->theap, theap_size, b->batRestricted == BAT_READ) != GDK_SUCCEED)
 		return GDK_FAIL;
 	HASHdestroy(b);
+	BDXdestroy(b);
 	IMPSdestroy(b);
 	OIDXdestroy(b);
 	return GDK_SUCCEED;
@@ -489,6 +490,7 @@ BATclear(BAT *b, bool force)
 
 	/* kill all search accelerators */
 	HASHdestroy(b);
+	BDXdestroy(b);
 	IMPSdestroy(b);
 	OIDXdestroy(b);
 	PROPdestroy(b);
@@ -557,6 +559,7 @@ BATfree(BAT *b)
 	b->tident = BATstring_t;
 	PROPdestroy(b);
 	HASHfree(b);
+	BDXfree(b);
 	IMPSfree(b);
 	OIDXfree(b);
 	if (b->ttype)
@@ -1080,6 +1083,7 @@ BUNappend(BAT *b, const void *t, bool force)
 	}
 
 
+	BDXdestroy(b); /* no support for inserts in bindex yet */
 	IMPSdestroy(b); /* no support for inserts in imprints yet */
 	OIDXdestroy(b);
 #if 0		/* enable if we have more properties than just min/max */
@@ -1161,6 +1165,7 @@ BUNdelete(BAT *b, oid o)
 			b->tnonil = true;
 		}
 	}
+	BDXdestroy(b);
 	IMPSdestroy(b);
 	OIDXdestroy(b);
 	HASHdestroy(b);
@@ -1265,6 +1270,7 @@ BUNinplace(BAT *b, BUN p, const void *t, bool force)
 		PROPdestroy(b);
 	}
 	OIDXdestroy(b);
+	BDXdestroy(b);
 	IMPSdestroy(b);
 	if (b->tvarsized && b->ttype) {
 		var_t _d;

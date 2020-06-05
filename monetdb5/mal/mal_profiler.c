@@ -336,6 +336,7 @@ This information can be used to determine memory footprint and variable life tim
 						total += cnt * d->twidth;
 						total += heapinfo(d->tvheap, d->batCacheid);
 						total += hashinfo(d->thash, d->batCacheid);
+						total += BDXbindexsize(d);
 						total += IMPSimprintsize(d);
 						BBPunfix(d->batCacheid);
 					}

@@ -9,12 +9,37 @@
 #include "monetdb_config.h"
 #include "gdk.h"
 #include "gdk_private.h"
+#include "gdk_bindex.h"
 
 /*
  * BATproject returns a BAT aligned with the left input whose values
  * are the values from the right input that were referred to by the
  * OIDs in the tail of the left input.
  */
+
+#define project_bitmap_loop(TYPE)	\
+static gdk_return	\
+project_bitmap_##TYPE(BAT *bn, BAT *l, BAT *r, bool nilcheck)	\
+{	\
+	(void)nilcheck;	\
+	const TYPE *restrict rt;					\
+	TYPE *restrict bt;						\
+	BUN bmn = l->tbmn;	\
+	void *bm = l->tbm;	\
+	rt = (const TYPE *) Tloc(r, 0);					\
+	bt = (TYPE *) Tloc(bn, 0);					\
+	BUN cnt = 0;	\
+	for (BUN i = 0; i < bmn; i++) {	\
+		bitmap_t bitset = *((bitmap_t *)bm + i);	\
+		while(bitset) {	\
+			int ntz = __builtin_ctzll(bitset);	\
+			bt[cnt++] = rt[i * BITMAPWIDTH + ntz];	\
+			bitset ^= (1UL << ntz);	\
+		}	\
+	}	\
+	BATsetcount(bn, cnt);	\
+	return GDK_SUCCEED;	\
+}
 
 #define project_loop(TYPE)						\
 static gdk_return							\
@@ -85,6 +110,14 @@ project_##TYPE(BAT *bn, BAT *l, BAT *r, bool nilcheck)			\
 	return GDK_SUCCEED;						\
 }
 
+/* project_bitmap type switch */
+project_bitmap_loop(bte)
+project_bitmap_loop(sht)
+project_bitmap_loop(int)
+project_bitmap_loop(lng)
+#ifdef HAVE_HGE
+project_bitmap_loop(hge)
+#endif
 
 /* project type switch */
 project_loop(bte)
@@ -372,6 +405,199 @@ BATproject(BAT *l, BAT *r)
 	if (!BATtdense(r))
 		BATtseqbase(bn, oid_nil);
 	ALGODEBUG fprintf(stderr, "#BATproject(l=%s,r=%s)=" ALGOBATFMT "%s " LLFMT "us\n",
+			  BATgetId(l), BATgetId(r), ALGOBATPAR(bn),
+			  bn->ttype == TYPE_str && bn->tvheap == r->tvheap ? " shared string heap" : "",
+			  GDKusec() - t0);
+	return bn;
+
+  bailout:
+	BBPreclaim(bn);
+	return NULL;
+}
+
+/*
+ * Bindex projection
+ */
+BAT *
+BATbdxproject(BAT *l, BAT *r)
+{
+	BAT *bn;
+	gdk_return res;
+	int tpe = ATOMtype(r->ttype);
+	bool nilcheck = true, stringtrick = false;
+	BUN lcount = BATcount(l), rcount = BATcount(r);
+	lng t0 = 0;
+
+	ALGODEBUG t0 = GDKusec();
+
+	ALGODEBUG fprintf(stderr, "#BATbdxproject(l=" ALGOBATFMT ","
+			  "r=" ALGOBATFMT ")\n",
+			  ALGOBATPAR(l), ALGOBATPAR(r));
+
+	// BATbdxselect returned from shortcut
+	if (!l->tbm) {
+		if (BATcount(l) == 0) {
+			const void *nil = ATOMnilptr(r->ttype);
+
+			bn = BATconstant(l->hseqbase, r->ttype == TYPE_oid ? TYPE_void : r->ttype,
+						nil, BATcount(l), TRANSIENT);
+			if (bn != NULL &&
+				ATOMtype(bn->ttype) == TYPE_oid &&
+				BATcount(bn) == 0) {
+				BATtseqbase(bn, 0);
+			}
+			ALGODEBUG fprintf(stderr, "#BATbdxproject(l=%s,r=%s)=" ALGOOPTBATFMT " (constant)\n",
+						BATgetId(l), BATgetId(r), ALGOOPTBATPAR(bn));
+			return bn;
+		} else {
+			oid lo = l->tseqbase;
+			oid hi = l->tseqbase + BATcount(l);
+			if (lo < r->hseqbase || hi > r->hseqbase + BATcount(r)) {
+				GDKerror("BATbdxproject: does not match always\n");
+				return NULL;
+			}
+			bn = BATslice(r, lo - r->hseqbase, hi - r->hseqbase);
+			BAThseqbase(bn, l->hseqbase + (lo - l->tseqbase));
+			ALGODEBUG fprintf(stderr, "#BATbdxproject(l=%s,r=%s)=" ALGOOPTBATFMT " (slice)\n",
+					BATgetId(l), BATgetId(r),  ALGOOPTBATPAR(bn));
+			return bn;
+		}
+	}
+	assert(ATOMtype(l->ttype) == TYPE_oid);
+
+	if (ATOMstorage(tpe) == TYPE_str &&
+	    l->tnonil &&
+	    (rcount == 0 ||
+	     lcount > (rcount >> 3) ||
+	     r->batRestricted == BAT_READ)) {
+		/* insert strings as ints, we need to copy the string
+		 * heap whole sale; we can't do this if there are nils
+		 * in the left column, and we won't do it if the left
+		 * is much smaller than the right and the right is
+		 * writable (meaning we have to actually copy the
+		 * right string heap) */
+		tpe = r->twidth == 1 ? TYPE_bte : (r->twidth == 2 ? TYPE_sht : (r->twidth == 4 ? TYPE_int : TYPE_lng));
+		/* int's nil representation is a valid offset, so
+		 * don't check for nils */
+		nilcheck = false;
+		stringtrick = true;
+	}
+	bn = COLnew(l->hseqbase, tpe, l->tbmn * BITMAPWIDTH, TRANSIENT);
+	if (bn == NULL) {
+		ALGODEBUG fprintf(stderr, "#BATbdxproject(l=%s,r=%s)=0\n",
+				  BATgetId(l), BATgetId(r));
+		return NULL;
+	}
+	if (stringtrick) {
+		/* "string type" */
+		bn->tsorted = false;
+		bn->trevsorted = false;
+		bn->tkey = false;
+		bn->tnonil = false;
+	} else {
+		/* be optimistic, we'll clear these if necessary later */
+		bn->tnonil = true;
+		bn->tsorted = true;
+		bn->trevsorted = true;
+		bn->tkey = true;
+		if (l->tnonil && r->tnonil)
+			nilcheck = false; /* don't bother checking: no nils */
+		if (tpe != TYPE_oid &&
+		    tpe != ATOMstorage(tpe) &&
+		    !ATOMvarsized(tpe) &&
+		    ATOMcompare(tpe) == ATOMcompare(ATOMstorage(tpe)) &&
+		    (!nilcheck ||
+		     ATOMnilptr(tpe) == ATOMnilptr(ATOMstorage(tpe)))) {
+			/* use base type if we can:
+			 * only fixed sized (no advantage for variable sized),
+			 * compare function identical (for sorted check),
+			 * either no nils, or nil representation identical,
+			 * not oid (separate case for those) */
+			tpe = ATOMstorage(tpe);
+		}
+	}
+	bn->tnil = false;
+
+	switch (tpe) {
+	case TYPE_bte:
+		res = project_bitmap_bte(bn, l, r, nilcheck);
+		break;
+	case TYPE_sht:
+		res = project_bitmap_sht(bn, l, r, nilcheck);
+		break;
+	case TYPE_int:
+		res = project_bitmap_int(bn, l, r, nilcheck);
+		break;
+	case TYPE_lng:
+		res = project_bitmap_lng(bn, l, r, nilcheck);
+		break;
+#ifdef HAVE_HGE
+	case TYPE_hge:
+		res = project_bitmap_hge(bn, l, r, nilcheck);
+		break;
+#endif
+	case TYPE_oid:
+		// TODO: bindex
+		if (r->ttype == TYPE_void) {
+			// res = project_bitmap_void(bn, l, r);
+		} else {
+#if SIZEOF_OID == SIZEOF_INT
+			res = project_bitmap_int(bn, l, r, nilcheck);
+#else
+			res = project_bitmap_lng(bn, l, r, nilcheck);
+#endif
+		}
+		break;
+	default:
+		// TODO: bindex
+		// res = project_bitmap_any(bn, l, r, nilcheck);
+		break;
+	}
+
+	if (res != GDK_SUCCEED)
+		goto bailout;
+
+	/* handle string trick */
+	if (stringtrick) {
+		if (r->batRestricted == BAT_READ) {
+			/* really share string heap */
+			assert(r->tvheap->parentid > 0);
+			BBPshare(r->tvheap->parentid);
+			bn->tvheap = r->tvheap;
+		} else {
+			/* make copy of string heap */
+			bn->tvheap = (Heap *) GDKzalloc(sizeof(Heap));
+			if (bn->tvheap == NULL)
+				goto bailout;
+			bn->tvheap->parentid = bn->batCacheid;
+			bn->tvheap->farmid = BBPselectfarm(bn->batRole, TYPE_str, varheap);
+			stpconcat(bn->tvheap->filename, BBP_physical(bn->batCacheid), ".theap", NULL);
+			if (HEAPcopy(bn->tvheap, r->tvheap) != GDK_SUCCEED)
+				goto bailout;
+		}
+		bn->ttype = r->ttype;
+		bn->tvarsized = true;
+		bn->twidth = r->twidth;
+		bn->tshift = r->tshift;
+
+		bn->tnil = false; /* we don't know */
+	}
+	/* some properties follow from certain combinations of input
+	 * properties */
+	if (BATcount(bn) <= 1) {
+		bn->tkey = true;
+		bn->tsorted = true;
+		bn->trevsorted = true;
+	} else {
+		bn->tkey = l->tkey && r->tkey;
+		bn->tsorted = (l->tsorted & r->tsorted) | (l->trevsorted & r->trevsorted);
+		bn->trevsorted = (l->tsorted & r->trevsorted) | (l->trevsorted & r->tsorted);
+	}
+	bn->tnonil |= l->tnonil & r->tnonil;
+
+	if (!BATtdense(r))
+		BATtseqbase(bn, oid_nil);
+	ALGODEBUG fprintf(stderr, "#BATbdxproject(l=%s,r=%s)=" ALGOBATFMT "%s " LLFMT "us\n",
 			  BATgetId(l), BATgetId(r), ALGOBATPAR(bn),
 			  bn->ttype == TYPE_str && bn->tvheap == r->tvheap ? " shared string heap" : "",
 			  GDKusec() - t0);

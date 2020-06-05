@@ -509,6 +509,8 @@ GDKinit(opt *set, int setlen)
 		MT_lock_init(&GDKbatLock[i].swap, name);
 		snprintf(name, sizeof(name), "GDKhashLock%d", i);
 		MT_lock_init(&GDKbatLock[i].hash, name);
+		snprintf(name, sizeof(name), "GDKbindexLock%d", i);
+		MT_lock_init(&GDKbatLock[i].bindex, name);
 		snprintf(name, sizeof(name), "GDKimpsLock%d", i);
 		MT_lock_init(&GDKbatLock[i].imprints, name);
 	}

@@ -602,6 +602,7 @@ typedef struct {
 	Heap heap;		/* heap where the hash is stored */
 } Hash;
 
+typedef struct Bindex Bindex;
 typedef struct Imprints Imprints;
 
 /*
@@ -720,6 +721,7 @@ gdk_export int VALisnil(const ValRecord *v);
  *           int    tloc;             // byte-offset in BUN for tail elements
  *           Heap   *theap;           // heap for varsized tail values
  *           Hash   *thash;           // linear chained hash table on tail
+ *           Bindex *tbindex;           // column bindex index on tail
  *           Imprints *timprints;     // column imprints index on tail
  *           orderidx torderidx;      // order oid index on tail
  *  } BAT;
@@ -764,8 +766,12 @@ typedef struct {
 	Heap heap;		/* space for the column. */
 	Heap *vheap;		/* space for the varsized data. */
 	Hash *hash;		/* hash table */
+	Bindex *bindex;	/* column bindex index */
 	Imprints *imprints;	/* column imprints index */
 	Heap *orderidx;		/* order oid index */
+
+	void *bm;		/* bitmap result, for bindex */
+	BUN bmn;		/* bitmap number, for bindex */
 
 	PROPrec *props;		/* list of dynamic properties stored in the bat descriptor */
 } COLrec;
@@ -832,7 +838,10 @@ typedef struct BATiter {
 #define theap		T.heap
 #define tvheap		T.vheap
 #define thash		T.hash
+#define tbindex		T.bindex
 #define timprints	T.imprints
+#define tbm			T.bm
+#define tbmn		T.bmn
 #define tprops		T.props
 
 
@@ -1820,6 +1829,23 @@ gdk_export void *ATOMdup(int id, const void *val);
 gdk_export gdk_return BAThash(BAT *b);
 
 /*
+ * @- Column Bindex Functions
+ *
+ * @multitable @columnfractions 0.08 0.7
+ * @item BAT*
+ * @tab
+ *  BATbindex (BAT *b)
+ * @end multitable
+ *
+ * The column bindex index structure.
+ *
+ */
+
+gdk_export gdk_return BATbindex(BAT *b);
+gdk_export void BDXdestroy(BAT *b);
+gdk_export lng BDXbindexsize(BAT *b);
+
+/*
  * @- Column Imprints Functions
  *
  * @multitable @columnfractions 0.08 0.7
@@ -2706,6 +2732,8 @@ gdk_export void BATrmprop(BAT *b, enum prop_t idx);
 
 gdk_export BAT *BATselect(BAT *b, BAT *s, const void *tl, const void *th, bool li, bool hi, bool anti);
 gdk_export BAT *BATthetaselect(BAT *b, BAT *s, const void *val, const char *op);
+gdk_export BAT *BATbdxselect(BAT *b, BAT *s, const void *tl, const void *th, bool li, bool hi, bool anti);
+gdk_export BAT *BATbdxthetaselect(BAT *b, BAT *s, const void *val, const char *op);
 
 gdk_export BAT *BATconstant(oid hseq, int tt, const void *val, BUN cnt, role_t role);
 gdk_export gdk_return BATsubcross(BAT **r1p, BAT **r2p, BAT *l, BAT *r, BAT *sl, BAT *sr)
@@ -2728,6 +2756,7 @@ gdk_export gdk_return BATbandjoin(BAT **r1p, BAT **r2p, BAT *l, BAT *r, BAT *sl,
 gdk_export gdk_return BATrangejoin(BAT **r1p, BAT **r2p, BAT *l, BAT *rl, BAT *rh, BAT *sl, BAT *sr, bool li, bool hi, BUN estimate)
 	__attribute__((__warn_unused_result__));
 gdk_export BAT *BATproject(BAT *l, BAT *r);
+gdk_export BAT *BATbdxproject(BAT *l, BAT *r);
 gdk_export BAT *BATprojectchain(BAT **bats);
 
 gdk_export BAT *BATslice(BAT *b, BUN low, BUN high);

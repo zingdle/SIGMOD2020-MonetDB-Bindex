@@ -879,6 +879,7 @@ BATdelete(BAT *b)
 	if (loaded) {
 		b = loaded;
 		HASHdestroy(b);
+		BDXdestroy(b);
 		IMPSdestroy(b);
 		OIDXdestroy(b);
 	}

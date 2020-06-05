@@ -28,6 +28,26 @@ pattern bat.partition(b:bat[:any_1], pieces:int, n:int):bat[:any_1]
 address CMDBATpartition2
 comment "Create the n-th slice over the BAT broken into several pieces.";
 
+command bat.bindex(b:bat[:bte]) :void
+address CMDBATbindex;
+command bat.bindex(b:bat[:sht]) :void
+address CMDBATbindex;
+command bat.bindex(b:bat[:int]) :void
+address CMDBATbindex;
+command bat.bindex(b:bat[:lng]) :void
+address CMDBATbindex;
+comment "Check for existence or create an bindex index on the BAT.";
+
+command bat.bindexsize(b:bat[:bte]):lng
+address CMDBATbindexsize;
+command bat.bindexsize(b:bat[:sht]):lng
+address CMDBATbindexsize;
+command bat.bindexsize(b:bat[:int]):lng
+address CMDBATbindexsize;
+command bat.bindexsize(b:bat[:lng]):lng
+address CMDBATbindexsize;
+comment "Return the storage size of the bindex index structure.";
+
 command bat.imprints(b:bat[:bte]) :void
 address CMDBATimprints;
 command bat.imprints(b:bat[:sht]) :void

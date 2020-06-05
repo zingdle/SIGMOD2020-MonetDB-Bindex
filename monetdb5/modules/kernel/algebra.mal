@@ -27,6 +27,10 @@ command projection( left:bat[:oid], right:bat[:any_3] ) :bat[:any_3]
 address ALGprojection
 comment "Project left input onto right input.";
 
+command bdxprojection( left:bat[:oid], right:bat[:any_3] ) :bat[:any_3]
+address ALGbdxprojection
+comment "Bindex projection";
+
 # BAT copying
 command copy( b:bat[:any_1]) :bat[:any_1]
 address ALGcopy
@@ -91,6 +95,26 @@ comment "Select all head values of the first input BAT for which the tail value
 command selectNotNil(b:bat[:any_2]):bat[:any_2]
 address ALGselectNotNil
 comment "Select all not-nil values";
+
+command bdxselect(b:bat[:any_1], low:any_1, high:any_1, li:bit, hi:bit, anti:bit) :bat[:oid]
+address ALGbdxselect1
+comment "Bindex version ALGselect1";
+
+command bdxselect(b:bat[:any_1], s:bat[:oid], low:any_1, high:any_1, li:bit, hi:bit, anti:bit) :bat[:oid]
+address ALGbdxselect2
+comment "Bindex version ALGselect2";
+
+command bdxthetaselect(b:bat[:any_1], val:any_1, op:str) :bat[:oid]
+address ALGbdxthetaselect1
+comment "Bindex version ALGthetaselect1";
+
+command bdxthetaselect(b:bat[:any_1], s:bat[:oid], val:any_1, op:str) :bat[:oid]
+address ALGbdxthetaselect2
+comment "Bindex version ALGthetaselect2";
+
+command bdxselectNotNil(b:bat[:any_2]):bat[:any_2]
+address ALGbdxselectNotNil
+comment "Bindex version ALGselectNotNil";
 
 command sort(b:bat[:any_1], reverse:bit, nilslast:bit, stable:bit) :bat[:any_1]
 address ALGsort11

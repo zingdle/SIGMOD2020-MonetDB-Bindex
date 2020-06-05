@@ -95,3 +95,6 @@ MacOSX/usr
 
 # build directory
 build/
+
+# log
+*.log

@@ -12,8 +12,25 @@
 #include "gdk_private.h"
 #include <math.h>
 
-/* auxiliary functions and structs for imprints */
+/* auxiliary functions and structs for bindex and imprints */
+#include "gdk_bindex.h"
 #include "gdk_imprints.h"
+
+#define BDXop(TYPE)	\
+	do {	\
+		TYPE vl = *(TYPE *)tl;	\
+		TYPE vh = *(TYPE *)th;	\
+		TYPE minval = MINVALUE##TYPE;	\
+		TYPE maxval = MAXVALUE##TYPE;	\
+		if (anti)	\
+			op = op_ab;	\
+		else if (vl == minval)	\
+			op = op_le; \
+		else if (vh == maxval)	\
+			op = op_ge;	\
+		else	\
+			op = op_bt;	\
+	} while (0);
 
 #define buninsfix(B,A,I,V,G,M,R)					\
 	do {								\
@@ -1987,6 +2004,485 @@ BATthetaselect(BAT *b, BAT *s, const void *val, const char *op)
 		}
 	}
 	GDKerror("BATthetaselect: unknown operator.\n");
+	return NULL;
+}
+
+/*
+ * bindex select
+*/
+BAT *
+BATbdxselect(BAT *b, BAT *s, const void *tl, const void *th,
+	     bool li, bool hi, bool anti)
+{
+	bool lval;		/* low value used for comparison */
+	bool lnil;		/* low value is nil */
+	bool hval;		/* high value used for comparison */
+	bool equi;		/* select for single value (not range) */
+	int t;			/* data type */
+	const void *nil;
+	BAT *bn;
+	union {
+		bte v_bte;
+		sht v_sht;
+		int v_int;
+		lng v_lng;
+#ifdef HAVE_HGE
+		hge v_hge;
+#endif
+		oid v_oid;
+	} vl, vh;
+	lng t0 = 0;
+
+	ALGODEBUG t0 = GDKusec();
+
+	BATcheck(b, "BATbdxselect", NULL);
+	BATcheck(tl, "BATbdxselect: tl value required", NULL);
+
+	assert(s == NULL || s->ttype == TYPE_oid || s->ttype == TYPE_void);
+
+	if (s && !BATtordered(s)) {
+		GDKerror("BATbdxselect: invalid argument: "
+			 "s must be sorted.\n");
+		return NULL;
+	}
+
+	if (b->batCount == 0 ||
+	    (s && (s->batCount == 0 ||
+		   (BATtdense(s) &&
+		    (s->tseqbase >= b->hseqbase + BATcount(b) ||
+		     s->tseqbase + BATcount(s) <= b->hseqbase))))) {
+		/* trivially empty result */
+		bn = BATdense(0, 0, 0);
+		ALGODEBUG fprintf(stderr, "#BATbdxselect(b=" ALGOBATFMT
+				  ",s=" ALGOOPTBATFMT ",anti=%d)=" ALGOOPTBATFMT
+				  " (" LLFMT " usec): "
+				  "trivially empty\n",
+				  ALGOBATPAR(b), ALGOOPTBATPAR(s), anti,
+				  ALGOOPTBATPAR(bn), GDKusec() - t0);
+		return bn;
+	}
+
+	t = b->ttype;
+	nil = ATOMnilptr(t);
+	/* can we use the base type? */
+	t = ATOMbasetype(t);
+	lnil = ATOMcmp(t, tl, nil) == 0; /* low value = nil? */
+
+	if (!lnil && th != NULL && (!li || !hi) && !anti && ATOMcmp(t, tl, th) == 0) {
+		/* upper and lower bound of range are equal and we
+		 * want an interval that's open on at least one
+		 * side */
+		bn = BATdense(0, 0, 0);
+		ALGODEBUG fprintf(stderr, "#BATbdxselect(b=" ALGOBATFMT
+				  ",s=" ALGOOPTBATFMT ",li=%d,hi=%d,anti=%d)=" ALGOOPTBATFMT
+				  " (" LLFMT " usec): "
+				  "empty interval\n",
+				  ALGOBATPAR(b), ALGOOPTBATPAR(s),
+				  li, hi, anti, ALGOOPTBATPAR(bn), GDKusec() - t0);
+		return bn;
+	}
+
+	lval = !lnil || th == NULL;	 /* low value used for comparison */
+	equi = th == NULL || (lval && ATOMcmp(t, tl, th) == 0); /* point select? */
+	if (equi) {
+		assert(lval);
+		if (th == NULL)
+			hi = li;
+		th = tl;
+		hval = true;
+	} else {
+		hval = ATOMcmp(t, th, nil) != 0;
+	}
+	if (anti) {
+		if (lval != hval) {
+			/* one of the end points is nil and the other
+			 * isn't: swap sub-ranges */
+			const void *tv;
+			bool ti;
+			assert(!equi);
+			ti = li;
+			li = !hi;
+			hi = !ti;
+			tv = tl;
+			tl = th;
+			th = tv;
+			ti = lval;
+			lval = hval;
+			hval = ti;
+			lnil = ATOMcmp(t, tl, nil) == 0;
+			anti = false;
+			ALGODEBUG fprintf(stderr, "#BATbdxselect(b=" ALGOBATFMT
+					  ",s=" ALGOOPTBATFMT ",anti=%d): "
+					  "anti: switch ranges...\n",
+					  ALGOBATPAR(b), ALGOOPTBATPAR(s),
+					  anti);
+		} else if (!lval && !hval) {
+			/* antiselect for nil-nil range: all non-nil
+			 * values are in range; we must return all
+			 * other non-nil values, i.e. nothing */
+			bn = BATdense(0, 0, 0);
+			ALGODEBUG fprintf(stderr, "#BATbdxselect(b=" ALGOBATFMT
+					  ",s=" ALGOOPTBATFMT ",anti=%d)=" ALGOOPTBATFMT
+					  " (" LLFMT " usec): "
+					  "anti: nil-nil range, nonil\n",
+					  ALGOBATPAR(b), ALGOOPTBATPAR(s),
+					  anti, ALGOOPTBATPAR(bn), GDKusec() - t0);
+			return bn;
+		} else if (equi && lnil) {
+			/* antiselect for nil value: turn into range
+			 * select for nil-nil range (i.e. everything
+			 * but nil) */
+			equi = false;
+			anti = false;
+			lval = false;
+			hval = false;
+			ALGODEBUG fprintf(stderr, "#BATbdxselect(b=" ALGOBATFMT
+					  ",s=" ALGOOPTBATFMT ",anti=0): "
+					  "anti-nil...\n",
+					  ALGOBATPAR(b), ALGOOPTBATPAR(s));
+		} else if (equi) {
+			equi = false;
+			if (!(li && hi)) {
+				/* antiselect for nothing: turn into
+				 * range select for nil-nil range
+				 * (i.e. everything but nil) */
+				anti = false;
+				lval = false;
+				hval = false;
+				ALGODEBUG fprintf(stderr, "#BATbdxselect(b="
+						  ALGOBATFMT ",s="
+						  ALGOOPTBATFMT ",anti=0): "
+						  "anti-nothing...\n",
+						  ALGOBATPAR(b),
+						  ALGOOPTBATPAR(s));
+			}
+		} else if (ATOMcmp(t, tl, th) > 0) {
+			/* empty range: turn into range select for
+			 * nil-nil range (i.e. everything but nil) */
+			equi = false;
+			anti = false;
+			lval = false;
+			hval = false;
+			ALGODEBUG fprintf(stderr, "#BATbdxselect(b=" ALGOBATFMT
+					  ",s=" ALGOOPTBATFMT ",anti=0): "
+					  "anti-nil...\n",
+					  ALGOBATPAR(b), ALGOOPTBATPAR(s));
+		}
+	}
+
+	/* if equi set, then so are both lval and hval */
+	assert(!equi || (lval && hval));
+
+	if (hval && ((equi && !(li && hi)) || ATOMcmp(t, tl, th) > 0)) {
+		/* empty range */
+		bn = BATdense(0, 0, 0);
+		ALGODEBUG fprintf(stderr, "#BATbdxselect(b=" ALGOBATFMT
+				  ",s=" ALGOOPTBATFMT ",anti=%d)=" ALGOOPTBATFMT
+				  " (" LLFMT " usec): "
+				  "empty range\n",
+				  ALGOBATPAR(b), ALGOOPTBATPAR(s), anti,
+				  ALGOOPTBATPAR(bn), GDKusec() - t0);
+		return bn;
+	}
+	if (equi && lnil && b->tnonil) {
+		/* return all nils, but there aren't any */
+		bn = BATdense(0, 0, 0);
+		ALGODEBUG fprintf(stderr, "#BATbdxselect(b=" ALGOBATFMT
+				  ",s=" ALGOOPTBATFMT ",anti=%d)=" ALGOOPTBATFMT
+				  " (" LLFMT " usec): "
+				  "equi-nil, nonil\n",
+				  ALGOBATPAR(b), ALGOOPTBATPAR(s), anti,
+				  ALGOOPTBATPAR(bn), GDKusec() - t0);
+		return bn;
+	}
+
+	if (!equi && !lval && !hval && lnil && b->tnonil) {
+		/* return all non-nils from a BAT that doesn't have
+		 * any: i.e. return everything */
+		if (s) {
+			oid o = b->hseqbase + BATcount(b);
+			BUN q = SORTfndfirst(s, &o);
+			BUN p = SORTfndfirst(s, &b->hseqbase);
+			bn = BATslice(s, p, q);
+		} else {
+			bn = BATdense(0, b->hseqbase, BATcount(b));
+		}
+		ALGODEBUG fprintf(stderr, "#BATbdxselect(b=" ALGOBATFMT
+				  ",s=" ALGOOPTBATFMT ",anti=%d)=" ALGOOPTBATFMT
+				  " (" LLFMT " usec): "
+				  "everything, nonil\n",
+				  ALGOBATPAR(b), ALGOOPTBATPAR(s), anti,
+				  ALGOOPTBATPAR(bn), GDKusec() - t0);
+		return bn;
+	}
+
+	if (anti) {
+		PROPrec *prop;
+		int c;
+
+		if ((prop = BATgetprop(b, GDK_MIN_VALUE)) != NULL) {
+			c = ATOMcmp(t, tl, VALptr(&prop->v));
+			if (c < 0 || (li && c == 0)) {
+				if ((prop = BATgetprop(b, GDK_MAX_VALUE)) != NULL) {
+					c = ATOMcmp(t, th, VALptr(&prop->v));
+					if (c > 0 || (hi && c == 0)) {
+						/* tl..th range fully
+						 * inside MIN..MAX
+						 * range of values in
+						 * BAT, so nothing
+						 * left over for
+						 * anti */
+						bn = BATdense(0, 0, 0);
+						ALGODEBUG fprintf(stderr, "#BATbdxselect(b=" ALGOBATFMT
+								  ",s=" ALGOOPTBATFMT ",anti=%d)=" ALGOOPTBATFMT
+								  " (" LLFMT " usec): "
+								  "nothing, out of range\n",
+								  ALGOBATPAR(b), ALGOOPTBATPAR(s), anti, ALGOOPTBATPAR(bn), GDKusec() - t0);
+						return bn;
+					}
+				}
+			}
+		}
+	} else if (!equi || !lnil) {
+		PROPrec *prop;
+		int c;
+
+		if (hval && (prop = BATgetprop(b, GDK_MIN_VALUE)) != NULL) {
+			c = ATOMcmp(t, th, VALptr(&prop->v));
+			if (c < 0 || (!hi && c == 0)) {
+				/* smallest value in BAT larger than
+				 * what we're looking for */
+				bn = BATdense(0, 0, 0);
+				ALGODEBUG fprintf(stderr, "#BATbdxselect(b="
+						  ALGOBATFMT ",s="
+						  ALGOOPTBATFMT ",anti=%d)=" ALGOOPTBATFMT
+						  " (" LLFMT " usec): "
+						  "nothing, out of range\n",
+						  ALGOBATPAR(b),
+						  ALGOOPTBATPAR(s), anti,
+						  ALGOOPTBATPAR(bn), GDKusec() - t0);
+				return bn;
+			}
+		}
+		if (lval && (prop = BATgetprop(b, GDK_MAX_VALUE)) != NULL) {
+			c = ATOMcmp(t, tl, VALptr(&prop->v));
+			if (c > 0 || (!li && c == 0)) {
+				/* largest value in BAT smaller than
+				 * what we're looking for */
+				bn = BATdense(0, 0, 0);
+				ALGODEBUG fprintf(stderr, "#BATbdxselect(b="
+						  ALGOBATFMT ",s="
+						  ALGOOPTBATFMT ",anti=%d)=" ALGOOPTBATFMT
+						  " (" LLFMT " usec): "
+						  "nothing, out of range\n",
+						  ALGOBATPAR(b),
+						  ALGOOPTBATPAR(s), anti,
+						  ALGOOPTBATPAR(bn), GDKusec() - t0);
+				return bn;
+			}
+		}
+	}
+
+	if (ATOMtype(b->ttype) == TYPE_oid) {
+		NORMALIZE(oid);
+	} else {
+		switch (t) {
+		case TYPE_bte:
+			NORMALIZE(bte);
+			break;
+		case TYPE_sht:
+			NORMALIZE(sht);
+			break;
+		case TYPE_int:
+			NORMALIZE(int);
+			break;
+		case TYPE_lng:
+			NORMALIZE(lng);
+			break;
+#ifdef HAVE_HGE
+		case TYPE_hge:
+			NORMALIZE(hge);
+			break;
+#endif
+		}
+	}
+
+	// TODO: bindex bindex on view
+	// TODO: bindex equi select
+	if (equi) {
+		GDKerror("BATbdxselect: not suppoert equi yet\n");
+		return NULL;
+	}
+	if (b->tnil) {
+		GDKerror("BATbdxselect: not suppoert nil yet\n");
+		return NULL;
+	}
+	if (!BATcheckbindex(b)) {
+		GDKerror("BATbdxselect: no bindex built yet\n");
+		return NULL;
+	}
+
+	ALGODEBUG fprintf(stderr, "#BATbdxselect(b=" ALGOBATFMT
+		",s=" ALGOOPTBATFMT ",anti=%d): "
+		"bindexidx\n",
+		ALGOBATPAR(b), ALGOOPTBATPAR(s),
+		anti);
+
+	assert(b->tnonil);
+	Bindex *bindex = b->tbindex;
+	area_t *area = (area_t *)bindex->area;
+	BUN bmn = bindex->bmn;
+	int hal, hau;	// vh's area lower/upper bound
+	BUN hpl, hpu;	// vh's position lower/upper bound
+	int lal, lau;	// vl's area lower/upper bound
+	BUN lpl, lpu;	// vl's position lower/upper bound
+
+	BDXlocate(b, (void *)th, &hal, &hau, &hpl, &hpu);
+	BDXlocate(b, (void *)tl, &lal, &lau, &lpl, &lpu);
+
+	op_t op = -1;
+	switch(ATOMbasetype(b->ttype)) {
+	case TYPE_bte:
+		BDXop(bte);
+		break;
+	case TYPE_sht:
+		BDXop(sht);
+		break;
+	case TYPE_int:
+		BDXop(int);
+		break;
+	case TYPE_lng:
+		BDXop(lng);
+		break;
+#ifdef HAVE_HGE
+	case TYPE_hge:
+		BDXop(hge);
+		break;
+#endif
+	}
+
+	if (op == op_le || op == op_ge) {
+		/* v <= vh */
+		/* v >= vl */
+		int fvi = (op == op_le) ? hau : lal;
+		BUN pos = (op == op_le) ? hpu : lpl;
+		area_t *a = &area[fvi];
+		BUN s, e;
+
+		if ((pos - a->pos) < (a->len / 2)) {
+			/* left part */
+			fvi = fvi - 1;
+			s = a->pos;
+			e = pos;
+		} else {
+			/* right part */
+			fvi = fvi;
+			s = pos;
+			e = a->pos + a->len;
+		}
+
+		BDXcopyfv(b, fvi, op == op_ge, bmn);
+		BDXrefinesv(b, s, e);
+	} else if (op == op_bt || op == op_ab) {
+		/* (v <= vl || v >= vh) */
+		/* v >= vl && v <= vh */
+		int fvih = (op == op_bt) ? hau : hal;
+		int fvil = (op == op_bt) ? lal : lau;
+		BUN posh = (op == op_bt) ? hpu : hpl;
+		BUN posl = (op == op_bt) ? lpl : lpu;
+		area_t *ha = &area[fvih];
+		area_t *la = &area[fvil];
+		BUN s1, e1, s2, e2;
+
+		if ((posh - ha->pos) < (ha->len / 2)) {
+			/* left part */
+			fvih = fvih - 1;
+			s1 = ha->pos;
+			e1 = posh;
+		} else {
+			/* right part */
+			fvih = fvih;
+			s1 = posh;
+			e1 = ha->pos + ha->len;
+		}
+
+		if ((posl - la->pos) < (la->len / 2)) {
+			/* left part */
+			fvil = fvil - 1;
+			s2 = la->pos;
+			e2 = posl;
+		} else {
+			/* right part */
+			fvil = fvil;
+			s2 = posl;
+			e2 = la->pos + la->len;
+		}
+
+		BDXmergefv(b, fvih, fvil, op == op_ab, op == op_bt, op == op_bt, bmn);
+		BDXrefinesv(b, s1, e1);
+		BDXrefinesv(b, s2, e2);
+	} else {
+		assert(0);
+	}
+
+	bn = BDXmergesv(b, s);
+
+	bn = virtualize(bn);
+	ALGODEBUG fprintf(stderr, "#BATbdxselect(b=%s)=" ALGOOPTBATFMT
+				" (" LLFMT " usec)\n",
+				BATgetId(b), ALGOOPTBATPAR(bn), GDKusec() - t0);
+
+	return bn;
+}
+
+/*
+ * bindex theta select
+ */
+BAT *
+BATbdxthetaselect(BAT *b, BAT *s, const void *val, const char *op)
+{
+	const void *nil;
+
+	BATcheck(b, "BATbdxthetaselect", NULL);
+	BATcheck(val, "BATbdxthetaselect", NULL);
+	BATcheck(op, "BATbdxthetaselect", NULL);
+
+	nil = ATOMnilptr(b->ttype);
+	if (ATOMcmp(b->ttype, val, nil) == 0)
+		return BATdense(0, 0, 0);
+	if (op[0] == '=' && ((op[1] == '=' && op[2] == 0) || op[1] == 0)) {
+		/* "=" or "==" */
+		return BATbdxselect(b, s, val, NULL, true, true, false);
+	}
+	if (op[0] == '!' && op[1] == '=' && op[2] == 0) {
+		/* "!=" (equivalent to "<>") */
+		return BATbdxselect(b, s, val, NULL, true, true, true);
+	}
+	if (op[0] == '<') {
+		if (op[1] == 0) {
+			/* "<" */
+			return BATbdxselect(b, s, nil, val, false, false, false);
+		}
+		if (op[1] == '=' && op[2] == 0) {
+			/* "<=" */
+			return BATbdxselect(b, s, nil, val, false, true, false);
+		}
+		if (op[1] == '>' && op[2] == 0) {
+			/* "<>" (equivalent to "!=") */
+			return BATbdxselect(b, s, val, NULL, true, true, true);
+		}
+	}
+	if (op[0] == '>') {
+		if (op[1] == 0) {
+			/* ">" */
+			return BATbdxselect(b, s, val, nil, false, false, false);
+		}
+		if (op[1] == '=' && op[2] == 0) {
+			/* ">=" */
+			return BATbdxselect(b, s, val, nil, true, false, false);
+		}
+	}
+	GDKerror("BATbdxthetaselect: unknown operator.\n");
 	return NULL;
 }
 

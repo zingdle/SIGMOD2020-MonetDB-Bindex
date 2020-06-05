@@ -819,6 +819,7 @@ BKCgetSize(lng *tot, const bat *bid){
 			size += ROUND_UP(b->tvheap->free, blksize);
 		if (b->thash)
 			size += ROUND_UP(sizeof(BUN) * cnt, blksize);
+		size += BDXbindexsize(b);
 		size += IMPSimprintsize(b);
 	} 
 	*tot = size;
@@ -976,6 +977,20 @@ BKCsetHash(bit *ret, const bat *bid)
 		throw(MAL, "bat.setHash", SQLSTATE(HY002) RUNTIME_OBJECT_MISSING);
 	}
 	*ret = BAThash(b) == GDK_SUCCEED;
+	BBPunfix(b->batCacheid);
+	return MAL_SUCCEED;
+}
+
+str
+BKCsetBindex(bit *ret, const bat *bid)
+{
+	BAT *b;
+
+	(void) ret;
+	if ((b = BATdescriptor(*bid)) == NULL) {
+		throw(MAL, "bat.setBindex", SQLSTATE(HY002) RUNTIME_OBJECT_MISSING);
+	}
+	*ret = BATbindex(b) == GDK_SUCCEED;
 	BBPunfix(b->batCacheid);
 	return MAL_SUCCEED;
 }

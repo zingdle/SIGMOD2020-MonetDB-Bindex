@@ -599,6 +599,7 @@ BATappend(BAT *b, BAT *n, BAT *s, bool force)
 
 	b->batDirtydesc = true;
 
+	BDXdestroy(b);		/* bindex do not support updates yet */
 	IMPSdestroy(b);		/* imprints do not support updates yet */
 	OIDXdestroy(b);
 	if ((prop = BATgetprop(b, GDK_MAX_VALUE)) != NULL) {

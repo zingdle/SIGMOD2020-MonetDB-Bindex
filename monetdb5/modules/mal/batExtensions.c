@@ -161,6 +161,35 @@ CMDBATpartition2(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci)
 }
 
 str
+CMDBATbindex(void *ret, bat *bid)
+{
+	BAT *b;
+	gdk_return r;
+
+	(void) ret;
+	if ((b = BATdescriptor(*bid)) == NULL)
+		throw(MAL, "bat.bindex", INTERNAL_BAT_ACCESS);
+
+	r = BATbindex(b);
+	BBPunfix(b->batCacheid);
+	if (r != GDK_SUCCEED)
+		throw(MAL, "bat.bindex", GDK_EXCEPTION);
+	return MAL_SUCCEED;
+}
+str
+CMDBATbindexsize(lng *ret, bat *bid)
+{
+	BAT *b;
+
+	if ((b = BATdescriptor(*bid)) == NULL)
+		throw(MAL, "bat.bindex", INTERNAL_BAT_ACCESS);
+
+	*ret = BDXbindexsize(b);
+	BBPunfix(b->batCacheid);
+	return MAL_SUCCEED;
+}
+
+str
 CMDBATimprints(void *ret, bat *bid)
 {
 	BAT *b;

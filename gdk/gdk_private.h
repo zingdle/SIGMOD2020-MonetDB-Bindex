@@ -24,6 +24,7 @@ enum heaptype {
 	offheap,
 	varheap,
 	hashheap,
+	bindexheap,
 	imprintsheap,
 	orderidxheap
 };
@@ -41,6 +42,8 @@ __hidden str ATOMunknown_name(int a)
 __hidden void ATOMunknown_clean(void)
 	__attribute__((__visibility__("hidden")));
 __hidden bool BATcheckhash(BAT *b)
+	__attribute__((__visibility__("hidden")));
+__hidden bool BATcheckbindex(BAT *b)
 	__attribute__((__visibility__("hidden")));
 __hidden bool BATcheckimprints(BAT *b)
 	__attribute__((__visibility__("hidden")));
@@ -193,11 +196,27 @@ __hidden gdk_return HEAPshrink(Heap *h, size_t size)
 	__attribute__((__visibility__("hidden")));
 __hidden int HEAPwarm(Heap *h)
 	__attribute__((__visibility__("hidden")));
+__hidden void BDXfree(BAT *b)
+	__attribute__((__visibility__("hidden")));
+__hidden void BDXlocate(BAT* b, void *incmp, int *al, int *au, BUN *pl, BUN *pu)
+	__attribute__((__visibility__("hidden")));
+__hidden BAT *BDXmergesv(BAT *b, BAT *s)
+	__attribute__((__visibility__("hidden")));
+__hidden BAT *BDXsv2bat(BAT *b)
+	__attribute__((__visibility__("hidden")));
+__hidden void BDXcopyfv(BAT *b, int fvi, bool anti, BUN bmn)
+	__attribute__((__visibility__("hidden")));
+__hidden void BDXmergefv(BAT *b, int fvi1, int fvi2, bool anti1, bool anti2, bool andop, BUN bmn)
+	__attribute__((__visibility__("hidden")));
+__hidden void BDXrefinesv(BAT *b, BUN s, BUN e)
+	__attribute__((__visibility__("hidden")));
 __hidden void IMPSfree(BAT *b)
 	__attribute__((__visibility__("hidden")));
 __hidden int IMPSgetbin(int tpe, bte bits, const char *restrict bins, const void *restrict v)
 	__attribute__((__visibility__("hidden")));
 #ifndef NDEBUG
+void BDXprint(BAT *b)		/* never called: for debugging only */
+	__attribute__((__cold__));
 void IMPSprint(BAT *b)		/* never called: for debugging only */
 	__attribute__((__cold__));
 #endif
@@ -257,7 +276,7 @@ __hidden BAT *virtualize(BAT *bn)
 	__attribute__((__visibility__("hidden")));
 
 /* some macros to help print info about BATs when using ALGODEBUG */
-#define ALGOBATFMT	"%s#" BUNFMT "[%s]%s%s%s%s%s%s%s%s%s"
+#define ALGOBATFMT	"%s#" BUNFMT "[%s]%s%s%s%s%s%s%s%s%s%s"
 #define ALGOBATPAR(b)	BATgetId(b),			\
 			BATcount(b),			\
 			ATOMname(b->ttype),		\
@@ -269,9 +288,10 @@ __hidden BAT *virtualize(BAT *bn)
 			b->tnonil ? "N" : "",		\
 			b->thash ? "H" : "",		\
 			b->torderidx ? "O" : "",	\
+			b->tbindex ? "B" : b->theap.parentid && BBP_cache(b->theap.parentid)->tbindex ? "(B)" : "",	\
 			b->timprints ? "I" : b->theap.parentid && BBP_cache(b->theap.parentid)->timprints ? "(I)" : ""
 /* use ALGOOPTBAT* when BAT is optional (can be NULL) */
-#define ALGOOPTBATFMT	"%s%s" BUNFMT "%s%s%s%s%s%s%s%s%s%s%s%s"
+#define ALGOOPTBATFMT	"%s%s" BUNFMT "%s%s%s%s%s%s%s%s%s%s%s%s%s"
 #define ALGOOPTBATPAR(b)				\
 			b ? BATgetId(b) : "",		\
 			b ? "#" : "",			\
@@ -287,6 +307,7 @@ __hidden BAT *virtualize(BAT *bn)
 			b && b->tnonil ? "N" : "",	\
 			b && b->thash ? "H" : "",	\
 			b && b->torderidx ? "O" : "",	\
+			b ? b->tbindex ? "B" : b->theap.parentid && BBP_cache(b->theap.parentid)->tbindex ? "(B)" : "" : "",	\
 			b ? b->timprints ? "I" : b->theap.parentid && BBP_cache(b->theap.parentid)->timprints ? "(I)" : "" : ""
 
 #define BBP_BATMASK	(128 * SIZEOF_SIZE_T - 1)
@@ -296,6 +317,15 @@ struct PROPrec {
 	enum prop_t id;
 	ValRecord v;
 	struct PROPrec *next;	/* simple chain of properties */
+};
+
+struct Bindex {
+	Heap bindex;
+	void *fv;		/* pointer into bindex heap (filter vector[K - 1]) */
+	void *sv;		/* pointer into bindex heap (scratch vector) */
+	void *area;		/* pointer into bindex heap (area[K]) */
+	BUN *rv;		/* pointer into bindex heap (refine vector) */
+	BUN bmn;		/* counter for bitmap length */
 };
 
 struct Imprints {
@@ -312,6 +342,7 @@ struct Imprints {
 typedef struct {
 	MT_Lock swap;
 	MT_Lock hash;
+	MT_Lock bindex;
 	MT_Lock imprints;
 } batlock_t;
 
@@ -360,6 +391,7 @@ extern MT_Lock GDKtmLock;
 
 #define GDKswapLock(x)  GDKbatLock[(x)&BBP_BATMASK].swap
 #define GDKhashLock(x)  GDKbatLock[(x)&BBP_BATMASK].hash
+#define GDKbindexLock(x)  GDKbatLock[(x)&BBP_BATMASK].bindex
 #define GDKimprintsLock(x)  GDKbatLock[(x)&BBP_BATMASK].imprints
 #if SIZEOF_SIZE_T == 8
 #define threadmask(y)	((int) ((mix_int((unsigned int) y) ^ mix_int((unsigned int) (y >> 32))) & BBP_THREADMASK))

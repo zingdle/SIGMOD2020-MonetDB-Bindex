@@ -20,6 +20,8 @@ mal_export str CMDBATnew_persistent(Client cntxt, MalBlkPtr m, MalStkPtr s, Inst
 mal_export str CMDBATsingle(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci);
 mal_export str CMDBATpartition(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci);
 mal_export str CMDBATpartition2(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci);
+mal_export str CMDBATbindex(void *ret, bat *bid);
+mal_export str CMDBATbindexsize(lng *ret, bat *bid);
 mal_export str CMDBATimprints(void *ret, bat *bid);
 mal_export str CMDBATimprintsize(lng *ret, bat *bid);
 

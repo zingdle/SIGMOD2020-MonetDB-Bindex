@@ -174,6 +174,7 @@ BATmaterialize(BAT *b)
 
 	/* cleanup possible ACC's */
 	HASHdestroy(b);
+	BDXdestroy(b);
 	IMPSdestroy(b);
 	OIDXdestroy(b);
 
@@ -411,6 +412,7 @@ VIEWdestroy(BAT *b)
 
 	/* remove any leftover private hash structures */
 	HASHdestroy(b);
+	BDXdestroy(b);
 	IMPSdestroy(b);
 	OIDXdestroy(b);
 	VIEWunlink(b);

@@ -26,6 +26,10 @@ mal_export str ALGselect1(bat *result, const bat *bid, const void *low, const vo
 mal_export str ALGselect2(bat *result, const bat *bid, const bat *sid, const void *low, const void *high, const bit *li, const bit *hi, const bit *anti);
 mal_export str ALGthetaselect1(bat *result, const bat *bid, const void *val, const char **op);
 mal_export str ALGthetaselect2(bat *result, const bat *bid, const bat *sid, const void *val, const char **op);
+mal_export str ALGbdxselect1(bat *result, const bat *bid, const void *low, const void *high, const bit *li, const bit *hi, const bit *anti);
+mal_export str ALGbdxselect2(bat *result, const bat *bid, const bat *sid, const void *low, const void *high, const bit *li, const bit *hi, const bit *anti);
+mal_export str ALGbdxthetaselect1(bat *result, const bat *bid, const void *val, const char **op);
+mal_export str ALGbdxthetaselect2(bat *result, const bat *bid, const bat *sid, const void *val, const char **op);
 
 mal_export str ALGjoin(bat *r1, bat *r2, const bat *l, const bat *r, const bat *sl, const bat *sr, const bit *nil_matches, const lng *estimate);
 mal_export str ALGleftjoin(bat *r1, bat *r2, const bat *l, const bat *r, const bat *sl, const bat *sr, const bit *nil_matches, const lng *estimate);
@@ -47,6 +51,7 @@ mal_export str ALGcopy(bat *result, const bat *bid);
 mal_export str ALGunique2(bat *result, const bat *bid, const bat *sid);
 mal_export str ALGunique1(bat *result, const bat *bid);
 mal_export str ALGprojection(bat *result, const bat *lid, const bat *rid);
+mal_export str ALGbdxprojection(bat *result, const bat *lid, const bat *rid);
 
 mal_export str ALGsort11(bat *result, const bat *bid, const bit *reverse, const bit *nilslast, const bit *stable);
 mal_export str ALGsort12(bat *result, bat *norder, const bat *bid, const bit *reverse, const bit *nilslast, const bit *stable);
@@ -72,6 +77,7 @@ mal_export str ALGfetchoid(ptr ret, const bat *bid, const oid *pos);
 mal_export str ALGexist(bit *ret, const bat *bid, const void *val);
 mal_export str ALGfind(oid *ret, const bat *bid, ptr val);
 mal_export str ALGselectNotNil(bat *result, const bat *bid);
+mal_export str ALGbdxselectNotNil(bat *result, const bat *bid);
 mal_export str ALGprojecttail(Client cntxt, MalBlkPtr mb, MalStkPtr stk, InstrPtr pci);
 mal_export str ALGreuse(bat *ret, const bat *bid);
 #endif

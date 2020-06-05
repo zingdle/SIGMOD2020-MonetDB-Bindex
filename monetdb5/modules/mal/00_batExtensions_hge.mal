@@ -4,6 +4,12 @@
 #
 # Copyright 1997 - July 2008 CWI, August 2008 - 2019 MonetDB B.V.
 
+command bat.bindex(b:bat[:hge])
+address CMDBATbindex;
+
+command bat.bindexsize(b:bat[:hge]):lng
+address CMDBATbindexsize;
+
 command bat.imprints(b:bat[:hge])
 address CMDBATimprints;
 
